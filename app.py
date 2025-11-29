@@ -184,10 +184,10 @@ elif input_method == "Text":
         "Provide your text here:",
         default_text_example,
         height=250,
-        placeholder="Python programming language/Health and fitness/biology",
+        placeholder="Python programming language",
     )
     text_to_process = text_input
-
+# "Python programming language/Health and fitness/biology"
 # --- Configuration Panel ---
 st.header("Flashcard Configuration")
 with st.container():
