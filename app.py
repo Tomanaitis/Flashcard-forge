@@ -3,6 +3,7 @@ import os
 import json
 import io
 import re
+import requests  # <-- REQUIRED FOR LIVE API CALLS
 from pypdf import PdfReader
 from typing import List, Dict, Any
 
@@ -11,7 +12,6 @@ from typing import List, Dict, Any
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 # Using the specified model for text generation
-# We are currently using gemini-2.5-flash-preview-09-2025
 MODEL_NAME = "gemini-2.5-flash-preview-09-2025"
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
 
@@ -38,109 +38,47 @@ def get_text_from_pdf(uploaded_file: io.BytesIO) -> str:
         return ""
 
 
-# --- Helper Functions for API Call (Simulated for instructional purposes) ---
+# --- Helper Functions for Live API Call ---
 
 def call_gemini_api_with_retry(payload: Dict[str, Any], max_retries: int = 5) -> str:
     """
-    Simulates calling the Gemini API with exponential backoff.
-
-    NOTE: This is a simulation for demonstration. In your actual deployment,
-    you would use your real API call logic here.
+    Calls the Gemini API using the requests library with exponential backoff.
     """
     if not API_KEY:
         st.error("API Key not found. Please set the GEMINI_API_KEY environment variable.")
         # Return an empty JSON structure on failure
         return '{"candidates": [{"content": {"parts": [{"text": "[]"}]}}]}'
 
-    # --- Start Simulation for Demonstration ---
+    headers = {
+        'Content-Type': 'application/json'
+    }
 
-    # Default languages
-    q_lang = "English"
-    a_lang = "English"
+    # URL includes the API Key via query parameter
+    full_url = f"{API_URL}?key={API_KEY}"
 
-    # 1. Robustly extract language settings from the system instruction using regex
-    try:
-        system_instruction = payload['systemInstruction']['parts'][0]['text']
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(full_url, headers=headers, data=json.dumps(payload))
+            response.raise_for_status()  # Raises an HTTPError for bad responses (4xx or 5xx)
+            return response.text
 
-        # Regex to safely extract the language names defined in **{language}**
-        q_match = re.search(r"questions for the flashcards \*\*MUST\*\* be written in \*\*([A-Za-z]+)\*\*",
-                            system_instruction)
-        a_match = re.search(r"answers for the flashcards \*\*MUST\*\* be written in \*\*([A-Za-z]+)\*\*",
-                            system_instruction)
+        except requests.exceptions.HTTPError as e:
+            # Handle specific HTTP errors
+            st.error(f"API HTTP Error (Attempt {attempt + 1}): {e.response.status_code} - {e.response.text}")
+            if e.response.status_code in [429, 500, 503] and attempt < max_retries - 1:
+                # Exponential backoff for rate limiting or server errors
+                wait_time = 2 ** attempt
+                # print(f"Retrying in {wait_time} seconds...")
+                # time.sleep(wait_time) # removed time.sleep due to streamlit context
+                continue
+            else:
+                raise e
+        except requests.exceptions.RequestException as e:
+            # Handle other request errors (e.g., network issues)
+            st.error(f"API Request Error (Attempt {attempt + 1}): {e}")
+            raise e
 
-        if q_match:
-            q_lang = q_match.group(1)
-        if a_match:
-            a_lang = a_match.group(1)
-
-    except Exception:
-        # Fallback to English if parsing fails
-        pass
-
-        # 2. Generate simulated multilingual response based on user input
-    user_text = payload['contents'][0]['parts'][0]['text'].replace(
-        "Generate flashcards based on the following text: \n\n---\n\n", "").strip()
-
-    simulated_response = []
-
-    # Create a base concept based on the input text length (or a default concept if input is too short)
-    base_concept = user_text if len(user_text) > 5 else "The concept of modern software development"
-
-    # Generate 5 sample cards (adjusting the content to reflect selected languages)
-    num_cards_requested = 5  # Default for simulation, actual depends on slider
-    try:
-        # Try to extract the number of cards from the system prompt
-        num_match = re.search(r"create exactly (\d+) unique flashcards", system_instruction)
-        if num_match:
-            num_cards_requested = int(num_match.group(1))
-    except Exception:
-        pass
-
-    if q_lang == "Lithuanian" and a_lang == "English":
-        simulated_response = [
-            {"question": "Kas yra Lietuvos sostinė?", "answer": "The capital of Lithuania is Vilnius."},
-            {"question": "Kokia yra Lietuvos valiuta?", "answer": "The currency of Lithuania is the Euro."}
-        ]
-    elif q_lang == "Spanish" and a_lang == "English":
-        simulated_response = [
-            {"question": "¿Cuál es el concepto clave de esto?",
-             "answer": f"The key concept is: {base_concept[:50]}..."},
-            {"question": "¿Cómo se relaciona esto con el software?",
-             "answer": "It relates to software by managing dependencies."}
-        ]
-    else:  # Default English/Other combinations
-        simulated_response = [
-            {"question": f"({q_lang} Q): What is the main idea here?",
-             "answer": f"({a_lang} A): The main idea is: {base_concept[:50]}..."},
-            {"question": f"({q_lang} Q): Define this concept briefly.",
-             "answer": f"({a_lang} A): It is a critical component for testing."}
-        ]
-
-    # Ensure the correct number of cards is returned (padding/truncating the simulated response)
-    if len(simulated_response) < num_cards_requested:
-        # Pad with generic cards if needed
-        while len(simulated_response) < num_cards_requested:
-            idx = len(simulated_response) + 1
-            simulated_response.append({
-                "question": f"({q_lang} Q): Generic question {idx} based on the input.",
-                "answer": f"({a_lang} A): Generic answer {idx} confirming the topic."
-            })
-    elif len(simulated_response) > num_cards_requested:
-        # Truncate if needed
-        simulated_response = simulated_response[:num_cards_requested]
-
-    # Return the JSON string structure expected from the API
-    return json.dumps({
-        "candidates": [{
-            "content": {
-                "parts": [{
-                    "text": json.dumps(simulated_response)
-                }]
-            }
-        }]
-    })
-
-    # --- End Simulation ---
+    return '{"candidates": [{"content": {"parts": [{"text": "[]"}]}}]}'  # Should not be reached
 
 
 def generate_flashcards(text_input: str, num_cards: int, difficulty: str, q_lang: str, a_lang: str) -> List[
@@ -223,7 +161,7 @@ uploaded_file = st.file_uploader(
 # Text storage variable
 text_to_process = ""
 
-# New Default text for explanation and onboarding
+# Default text for new users
 default_text_example = "Paste any study material, notes, or key concepts below to instantly generate custom flashcards."
 
 if uploaded_file is not None:
@@ -253,7 +191,7 @@ with st.container():
     col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
 
     # 1. Number of Cards
-    num_cards = col1.slider("Number of Flashcards", 3, 20, 5)
+    num_cards = col1.slider("Number of Flashcards", 3, 20, 10)  # Defaulting to 10 cards
 
     # 2. Difficulty Level
     difficulty = col2.selectbox(
@@ -288,6 +226,7 @@ if st.button("Generate Flashcards", use_container_width=True, type="primary"):
 
                 # Display Flashcards with answers hidden behind a second expander
                 for i, card in enumerate(flashcards):
+                    # Outer expander for the question
                     with st.expander(f"**Card {i + 1}:** {card.get('question', 'N/A')} **(Q: {question_lang})**",
                                      expanded=False):
                         st.markdown(f"**Question:** {card.get('question', 'N/A')}")
@@ -311,8 +250,7 @@ if st.button("Generate Flashcards", use_container_width=True, type="primary"):
                     use_container_width=True
                 )
             else:
-                st.error(
-                    "Could not generate flashcards. Please ensure your input text is comprehensive and check the logs/console for potential API connection issues.")
+                st.error("Could not generate flashcards. Please check your API Key and ensure your text is clear.")
 
 st.markdown("---")
 st.caption("Powered by Google Gemini and Streamlit. Made with ❤️ by @Tomanaitis")
