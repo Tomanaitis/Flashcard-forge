@@ -178,13 +178,13 @@ if input_method == "Upload PDF":
         else:
             st.warning("Could not extract enough text from the PDF. Please try a different file.")
 
-elif input_method == "Paste Text":
+elif input_method == "Text":
     # Text area appears when selected
     text_input = st.text_area(
-        "Paste your study material here:",
+        "Give a prompt or theme you want the flashcard generator to use:",
         default_text_example,
         height=250,
-        placeholder="Paste text from your notes or textbook..."
+        placeholder="Example Text: (Nature/Health and fitness/Python programming language/History)",
     )
     text_to_process = text_input
 
