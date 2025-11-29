@@ -231,7 +231,7 @@ if st.button("Generate Flashcards", use_container_width=True, type="primary"):
                         #st.markdown(f"**Question:** {card.get('question', 'N/A')}")
 
                         # Nested expander to hide the answer
-                        with st.expander("👉 Show Answer", expanded=False):
+                        #with st.expander("👉 Show Answer", expanded=False):
                             st.markdown(f"**Answer:** {card.get('answer', 'N/A')} **(A: {answer_lang})**")
 
                 # Download Button (Markdown format)
