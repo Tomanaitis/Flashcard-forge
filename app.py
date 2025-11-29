@@ -15,7 +15,7 @@ API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MODEL_NAME = "gemini-2.5-flash-preview-09-2025"
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent"
 
-# Languages available for selection (LITHUANIAN ADDED)
+# Languages available for selection
 LANGUAGES = [
     "English", "Spanish", "French", "German", "Italian",
     "Portuguese", "Japanese", "Korean", "Chinese", "Lithuanian"
@@ -77,10 +77,25 @@ def call_gemini_api_with_retry(payload: Dict[str, Any], max_retries: int = 5) ->
         # Fallback to English if parsing fails
         pass
 
-        # 2. Generate simulated multilingual response
+        # 2. Generate simulated multilingual response based on user input
+    user_text = payload['contents'][0]['parts'][0]['text'].replace(
+        "Generate flashcards based on the following text: \n\n---\n\n", "").strip()
+
     simulated_response = []
 
-    # Simulated content based on selected languages
+    # Create a base concept based on the input text length (or a default concept if input is too short)
+    base_concept = user_text if len(user_text) > 5 else "The concept of modern software development"
+
+    # Generate 5 sample cards (adjusting the content to reflect selected languages)
+    num_cards_requested = 5  # Default for simulation, actual depends on slider
+    try:
+        # Try to extract the number of cards from the system prompt
+        num_match = re.search(r"create exactly (\d+) unique flashcards", system_instruction)
+        if num_match:
+            num_cards_requested = int(num_match.group(1))
+    except Exception:
+        pass
+
     if q_lang == "Lithuanian" and a_lang == "English":
         simulated_response = [
             {"question": "Kas yra Lietuvos sostinė?", "answer": "The capital of Lithuania is Vilnius."},
@@ -88,22 +103,31 @@ def call_gemini_api_with_retry(payload: Dict[str, Any], max_retries: int = 5) ->
         ]
     elif q_lang == "Spanish" and a_lang == "English":
         simulated_response = [
-            {"question": "Cuál es la capital de Francia?", "answer": "The capital of France is Paris."},
-            {"question": "Cuál es el modelo de lenguaje que estamos utilizando?",
-             "answer": "The language model used for generation is Gemini 2.5 Flash."}
-        ]
-    elif q_lang == "French" and a_lang == "German":
-        simulated_response = [
-            {"question": "Quelle est la capitale de l'Allemagne?", "answer": "Die Hauptstadt Deutschlands ist Berlin."},
-            {"question": "Comment dit-on 'bonjour' en allemand?", "answer": "Man sagt 'Guten Tag'."}
+            {"question": "¿Cuál es el concepto clave de esto?",
+             "answer": f"The key concept is: {base_concept[:50]}..."},
+            {"question": "¿Cómo se relaciona esto con el software?",
+             "answer": "It relates to software by managing dependencies."}
         ]
     else:  # Default English/Other combinations
         simulated_response = [
-            {"question": f"({q_lang} Q): What is the Streamlit library used for?",
-             "answer": f"({a_lang} A): It is used for turning Python scripts into interactive web applications."},
-            {"question": f"({q_lang} Q): What is a Python virtual environment?",
-             "answer": f"({a_lang} A): A self-contained directory that keeps specific Python versions and dependencies separate from others."}
+            {"question": f"({q_lang} Q): What is the main idea here?",
+             "answer": f"({a_lang} A): The main idea is: {base_concept[:50]}..."},
+            {"question": f"({q_lang} Q): Define this concept briefly.",
+             "answer": f"({a_lang} A): It is a critical component for testing."}
         ]
+
+    # Ensure the correct number of cards is returned (padding/truncating the simulated response)
+    if len(simulated_response) < num_cards_requested:
+        # Pad with generic cards if needed
+        while len(simulated_response) < num_cards_requested:
+            idx = len(simulated_response) + 1
+            simulated_response.append({
+                "question": f"({q_lang} Q): Generic question {idx} based on the input.",
+                "answer": f"({a_lang} A): Generic answer {idx} confirming the topic."
+            })
+    elif len(simulated_response) > num_cards_requested:
+        # Truncate if needed
+        simulated_response = simulated_response[:num_cards_requested]
 
     # Return the JSON string structure expected from the API
     return json.dumps({
@@ -199,8 +223,8 @@ uploaded_file = st.file_uploader(
 # Text storage variable
 text_to_process = ""
 
-# Default text in English for the text area
-default_text_example = ""
+# New Default text for explanation and onboarding
+default_text_example = "Paste any study material, notes, or key concepts below to instantly generate custom flashcards."
 
 if uploaded_file is not None:
     # PDF is uploaded, extract text from it
@@ -216,10 +240,10 @@ if uploaded_file is not None:
 else:
     # No PDF, use manual text area input
     text_input = st.text_area(
-        "Paste any study material, notes, or key concepts below to instantly generate custom flashcards.",
+        "Paste your study material here:",
         default_text_example,
         height=250,
-        placeholder="Paste text from your notes or textbook... (minimum 50 characters)"
+        placeholder="Paste text from your notes or textbook..."
     )
     text_to_process = text_input
 
@@ -253,43 +277,42 @@ with st.container():
 
 # Generation Button
 if st.button("Generate Flashcards", use_container_width=True, type="primary"):
-    if not text_to_process or len(text_to_process) < 50:
-        st.warning("Please provide at least 50 characters of text (via paste or PDF) to generate flashcards.")
+    if not text_to_process or not text_to_process.strip():
+        st.warning("Please provide some text (via paste or PDF) to generate flashcards.")
     else:
-        # Check if the extracted text length is sufficient after stripping whitespace
-        if len(text_to_process.strip()) < 50:
-            st.warning("The extracted text content is too short or empty. Please provide more content.")
-        else:
-            with st.spinner(f"Generating {num_cards} flashcards (Q: {question_lang} | A: {answer_lang})..."):
-                flashcards = generate_flashcards(text_to_process, num_cards, difficulty, question_lang, answer_lang)
+        with st.spinner(f"Generating {num_cards} flashcards (Q: {question_lang} | A: {answer_lang})..."):
+            flashcards = generate_flashcards(text_to_process, num_cards, difficulty, question_lang, answer_lang)
 
-                if flashcards:
-                    st.success(f"Successfully generated {len(flashcards)} flashcards!")
+            if flashcards:
+                st.success(f"Successfully generated {len(flashcards)} flashcards!")
 
-                    # Display Flashcards
-                    for i, card in enumerate(flashcards):
-                        with st.expander(f"**Card {i + 1}** (Q: {question_lang} | A: {answer_lang})", expanded=True):
-                            st.markdown(f"**Question:** {card.get('question', 'N/A')}")
-                            st.markdown("---")
-                            st.markdown(f"**Answer:** {card.get('answer', 'N/A')}")
+                # Display Flashcards with answers hidden behind a second expander
+                for i, card in enumerate(flashcards):
+                    with st.expander(f"**Card {i + 1}:** {card.get('question', 'N/A')} **(Q: {question_lang})**",
+                                     expanded=False):
+                        st.markdown(f"**Question:** {card.get('question', 'N/A')}")
 
-                    # Download Button (Markdown format)
-                    markdown_output = ""
-                    for i, card in enumerate(flashcards):
-                        markdown_output += f"### Card {i + 1}\n"
-                        markdown_output += f"**Q ({question_lang}):** {card.get('question', 'N/A')}\n"
-                        markdown_output += f"**A ({answer_lang}):** {card.get('answer', 'N/A')}\n\n"
+                        # Nested expander to hide the answer
+                        with st.expander("👉 Show Answer", expanded=False):
+                            st.markdown(f"**Answer:** {card.get('answer', 'N/A')} **(A: {answer_lang})**")
 
-                    st.download_button(
-                        label="⬇️ Download Flashcards (Markdown)",
-                        data=markdown_output,
-                        file_name="flashcards_multilingual.md",
-                        mime="text/markdown",
-                        use_container_width=True
-                    )
-                else:
-                    st.error(
-                        "Could not generate flashcards. Please check the logs/console for potential API connection issues.")
+                # Download Button (Markdown format)
+                markdown_output = ""
+                for i, card in enumerate(flashcards):
+                    markdown_output += f"### Card {i + 1}\n"
+                    markdown_output += f"**Q ({question_lang}):** {card.get('question', 'N/A')}\n"
+                    markdown_output += f"**A ({answer_lang}):** {card.get('answer', 'N/A')}\n\n"
+
+                st.download_button(
+                    label="⬇️ Download Flashcards (Markdown)",
+                    data=markdown_output,
+                    file_name="flashcards_multilingual.md",
+                    mime="text/markdown",
+                    use_container_width=True
+                )
+            else:
+                st.error(
+                    "Could not generate flashcards. Please ensure your input text is comprehensive and check the logs/console for potential API connection issues.")
 
 st.markdown("---")
 st.caption("Powered by Google Gemini and Streamlit. Made with ❤️ by @Tomanaitis")
