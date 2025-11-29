@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import json
 import io
-import re
 import requests  # <-- REQUIRED FOR LIVE API CALLS
 from pypdf import PdfReader
 from typing import List, Dict, Any
@@ -229,7 +228,7 @@ if st.button("Generate Flashcards", use_container_width=True, type="primary"):
                     # Outer expander for the question
                     with st.expander(f"**Card {i + 1}:** {card.get('question', 'N/A')} **(Q: {question_lang})**",
                                      expanded=False):
-                        st.markdown(f"**Question:** {card.get('question', 'N/A')}")
+                        #st.markdown(f"**Question:** {card.get('question', 'N/A')}")
 
                         # Nested expander to hide the answer
                         with st.expander("👉 Show Answer", expanded=False):
