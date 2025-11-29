@@ -184,7 +184,7 @@ elif input_method == "Text":
         "Provide your text here:",
         default_text_example,
         height=250,
-        placeholder="Python programming language/Health and fitness/biology",
+        placeholder="Examples: Python programming language / Health and fitness / Biology",
     )
     text_to_process = text_input
 # --- Configuration Panel ---
