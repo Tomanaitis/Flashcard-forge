@@ -1,4 +1,12 @@
 import os
+import sys # Import sys to modify the path
+
+# Add the project root directory to the system path
+# This ensures that imports like 'from prompts import ...' work correctly
+# regardless of how the app is launched (e.g., via Streamlit or locally).
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+
 from dotenv import load_dotenv
 import google.generativeai as genai
 from prompts import FLASHCARD_PROMPT

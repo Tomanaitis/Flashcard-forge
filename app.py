@@ -2,7 +2,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from main import generate_flashcards
 import pypdf
-import re
 
 # Load environment variables (like API keys)
 load_dotenv()
@@ -100,7 +99,6 @@ with tab1:
                 cards = generate_flashcards(topic, num_cards, level)
             display_cards(cards, "Text_Input")
 
-
 # ========================================================
 #                      TAB 2 — PDF
 # ========================================================
@@ -133,7 +131,6 @@ with tab2:
                 cards = generate_flashcards(truncated, pdf_count, pdf_level)
 
             display_cards(cards, title)
-
 
 # Footer
 st.markdown("---")
